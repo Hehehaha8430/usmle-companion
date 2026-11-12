@@ -760,7 +760,7 @@ function TreePlayer(V){if(!TRUN)return go("practice");const tr=TRUN.tree,t=TOPIC
   V.innerHTML=`<div class="ptop"><button class="iconbtn" id="quit" aria-label="Close tree">${ICON.close}</button><div class="bar"><i id="tb" style="width:0"></i></div><span class="n" id="tc">0/${TRUN.list.length}</span><button class="iconbtn" data-gear aria-label="Settings">${ICON.gear}</button></div>
    <div class="meta">${DX?`<span class="topic" id="ttopic">Diagnosis case</span><span id="tkind">Name it before the topic shows</span>`:`<span class="topic">${esc(t.title)}</span><span>${chName?esc(tr.title)+": "+esc(chName):tr.series==="dxtree"?"Diagnosis tree":"Concept tree"}</span>`}${(tr.times_tested||1)>1?"<span>High yield</span>":""}${R.oneliner?`<button class="swap" id="swap">${CFG.short?"Full case":"One-liner"}</button>`:""}</div>
    <div class="tree" id="tree"><svg class="wires" id="wires" aria-hidden="true"></svg>
-     <section class="tnode root" data-id="root" style="--d:0">${tr.plate?`<img src="${tr.plate}" alt=""${DX?' class="veiled"':""}>`:""}<div class="rc">${caseHTML(R)}${R.rootSvg==="chest"?chestSVG():""}</div></section></div>
+     <section class="tnode root" data-id="root" style="--d:0">${tr.plate?`<img src="${tr.plate}" alt="" onerror="this.remove()"${DX?' class="veiled"':""}>`:""}<div class="rc">${caseHTML(R)}${R.rootSvg==="chest"?chestSVG():""}</div></section></div>
    <div id="tend"></div>`;
   wireGear(V);$("#quit").onclick=()=>{TRUN=null;go("practice")};
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();$(".tnode.root .rc").innerHTML=caseHTML(R)+(R.rootSvg==="chest"?chestSVG():"");$("#swap").textContent=CFG.short?"Full case":"One-liner";wires()};

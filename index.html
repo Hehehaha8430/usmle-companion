@@ -106,6 +106,7 @@ html[data-theme="night"] .btn.go{color:#0F1626}
 .drop b{font-weight:600}
 .drop.set{border-color:var(--scrub);background:var(--scrub-t)}
 .drop svg{width:.85rem;height:.85rem;color:var(--quiet)}
+.cnav .btn svg{width:1rem;height:1rem}.cnav{display:flex;justify-content:space-between;gap:.6rem;margin:.9rem 0 .2rem}.cnav .btn{flex:1}.cnav .btn[disabled]{opacity:.4;cursor:default}
 .series{margin-top:1.2rem;background:var(--sheet);border-radius:10px}
 .soon{margin-top:1rem;background:var(--sheet);border-radius:10px;padding:.8rem 1.1rem;font-size:.9rem;color:var(--quiet)}.soon summary{cursor:pointer;font-weight:600;color:var(--ink)}.soon ul{margin:.6rem 0 0;padding-left:1.1rem}.soon li{margin:.35rem 0}.soon b{color:var(--ink);font-weight:600}
 .secd summary{gap:.8rem}.secd summary .s{flex:none;white-space:nowrap}
@@ -633,8 +634,9 @@ function Player(V){
      <h2 class="ask">${it.ask}</h2>
      <div id="stage" aria-live="polite"></div>
    </article>
+   <nav class="cnav" aria-label="Move between cards"><button class="btn" id="pv"${RUN.pos>0?"":" disabled"}>${ICON.back} Previous</button><button class="btn" id="sk">${RUN.pos+1<RUN.q.length?"Next":"Finish"} ${ICON.fwd}</button></nav>
    <div class="foot keys">${rapid?"<kbd>A</kbd> to <kbd>E</kbd> answer":"<kbd>1</kbd> sure, <kbd>2</kbd> unsure, <kbd>3</kbd> guess, <kbd>H</kbd> hint, <kbd>A</kbd> to <kbd>E</kbd> answer"}, <kbd>Enter</kbd> next, <kbd>←</kbd> back, <kbd>Esc</kbd> end</div>`;
-  wireGear(V);$("#quit").onclick=()=>end();if($("#prev"))$("#prev").onclick=prevCard;
+  wireGear(V);$("#quit").onclick=()=>end();if($("#prev"))$("#prev").onclick=prevCard;$("#pv").onclick=prevCard;$("#sk").onclick=skipCard;
   if($(".cfig"))$(".cfig").onclick=e=>{const f=e.currentTarget;f.classList.toggle("big");$("figcaption",f).textContent=f.classList.contains("big")?"Tap to shrink":"Tap to enlarge"};
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();const p=$(".stem");p.outerHTML=CFG.short&&it.oneliner?`<p class="stem one">${ONE(it.oneliner)}</p>`:`<p class="stem">${HL(it.stem,it)}</p>`;$("#swap").textContent=CFG.short?"Full case":"One-liner"};
   stage(was&&was.timedOut);
@@ -679,6 +681,7 @@ function record(timedOut){const it=RUN.q[RUN.pos],ok=picked===OPT(it).c,id=it.id
     if(RUN.mode!=="rapid"&&!RUN.again.has(id)&&!RUN.q.slice(RUN.pos+1).includes(it)){RUN.again.add(id);RUN.q.splice(Math.min(RUN.pos+4,RUN.q.length),0,it)}}
   P.box[id]=box;P.due[id]=box?now()+GAP[box]*DAY:now()+10*MIN;saveP();
   if(ok&&conf!=="guess"){buzz(12);if(RUN.streak&&RUN.streak%5===0)spark()}else buzz([25,40,25])}
+function skipCard(){if(!RUN)return;clearInterval(tick);RUN.pos++;RUN.pos<RUN.q.length?go("player"):end()}
 function prevCard(){if(!RUN||RUN.pos<1)return;clearInterval(tick);RUN.pos--;go("player")}
 function next(){const c=$("#qc"),adv=()=>{RUN.pos++;RUN.pos<RUN.q.length?go("player"):end()};if(c&&CFG.motion==="full"){c.classList.add("leave");setTimeout(adv,180)}else adv()}
 function end(){clearInterval(tick);if(!RUN)return go("today");const r=RUN;RUN=null;
@@ -781,8 +784,9 @@ function TreePlayer(V){if(!TRUN)return go("practice");const tr=TRUN.tree,t=TOPIC
    <div class="meta">${DX?`<span class="topic" id="ttopic">Diagnosis case</span><span id="tkind">Name it before the topic shows</span>`:`<span class="topic">${esc(t.title)}</span><span>${chName?esc(tr.title)+": "+esc(chName):tr.series==="dxtree"?"Diagnosis tree":"Concept tree"}</span>`}${(tr.times_tested||1)>1?"<span>High yield</span>":""}${R.oneliner?`<button class="swap" id="swap">${CFG.short?"Full case":"One-liner"}</button>`:""}</div>
    <div class="tree" id="tree"><svg class="wires" id="wires" aria-hidden="true"></svg>
      <section class="tnode root" data-id="root" style="--d:0">${tr.plate?`<img src="${tr.plate}" alt="" onerror="this.remove()"${DX?' class="veiled"':""}>`:""}<div class="rc">${caseHTML(R)}${R.rootSvg==="chest"?chestSVG():""}</div></section></div>
-   <div id="tend"></div>`;
-  wireGear(V);$("#quit").onclick=()=>{TRUN=null;go("practice")};if($("#tprev"))$("#tprev").onclick=()=>treeStep(-1);if($("#tnext"))$("#tnext").onclick=()=>treeStep(1);
+   <div id="tend"></div>
+   ${TNAV&&TNAV.seq.length+(TNAV.more?1:0)>1?`<nav class="cnav" aria-label="Move between cases"><button class="btn" id="tpv"${canStep(-1)?"":" disabled"}>${ICON.back} Previous case</button><button class="btn" id="tnv"${canStep(1)?"":" disabled"}>Next case ${ICON.fwd}</button></nav>`:""}`;
+  wireGear(V);$("#quit").onclick=()=>{TRUN=null;go("practice")};if($("#tprev"))$("#tprev").onclick=()=>treeStep(-1);if($("#tnext"))$("#tnext").onclick=()=>treeStep(1);if($("#tpv"))$("#tpv").onclick=()=>treeStep(-1);if($("#tnv"))$("#tnv").onclick=()=>treeStep(1);
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();$(".tnode.root .rc").innerHTML=caseHTML(R)+(R.rootSvg==="chest"?chestSVG():"");$("#swap").textContent=CFG.short?"Full case":"One-liner";wires()};
   addEventListener("resize",wires);
   if(!TRUN.all&&!TRUN.list.some(n=>["new","due"].includes(tnDue(tr,n)))){const soon=Math.min(...TRUN.list.map(n=>tnState(tr,n)).filter(s=>s&&!s.retired).map(s=>s.due));

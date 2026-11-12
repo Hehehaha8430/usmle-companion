@@ -396,6 +396,8 @@ const ICON={
  gear:`<svg viewBox="0 0 24 24" ${S1}><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>`,
  down:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`,
  close:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>`,
+ fwd:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`,
+ back:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`,
  tick:`<svg viewBox="0 0 24 24" fill="none" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>`
 };
 
@@ -608,8 +610,10 @@ let ph,conf,picked,hintOn,tick,tStart;
 function Player(V){
   if(!RUN)return go("today");const it=RUN.q[RUN.pos],rapid=RUN.mode==="rapid",t=TOPIC[it.topic];
   const direct=rapid||(CFG.opts&&CFG.direct);ph=direct?"options":"rate";conf=direct?"sure":null;picked=null;hintOn=false;clearInterval(tick);
+  const was=(RUN.log||{})[RUN.pos];if(was){ph="done";picked=was.picked;conf=was.conf}
   V.innerHTML=`<div class="ptop">
      <button class="iconbtn" id="quit" aria-label="End session">${ICON.close}</button>
+     ${RUN.pos>0?`<button class="iconbtn" id="prev" aria-label="Previous card" title="Previous card">${ICON.back}</button>`:""}
      <div class="bar" aria-hidden="true"><i style="width:${100*RUN.pos/RUN.q.length}%"></i></div>
      ${RUN.streak>=3?`<span class="streak" title="Right in a row">${RUN.streak} in a row</span>`:""}
      <span class="n">${RUN.pos+1}/${RUN.q.length}</span>
@@ -622,13 +626,13 @@ function Player(V){
      <h2 class="ask">${it.ask}</h2>
      <div id="stage" aria-live="polite"></div>
    </article>
-   <div class="foot keys">${rapid?"<kbd>A</kbd> to <kbd>E</kbd> answer":"<kbd>1</kbd> sure, <kbd>2</kbd> unsure, <kbd>3</kbd> guess, <kbd>H</kbd> hint, <kbd>A</kbd> to <kbd>E</kbd> answer"}, <kbd>Enter</kbd> next, <kbd>Esc</kbd> end</div>`;
-  wireGear(V);$("#quit").onclick=()=>end();
+   <div class="foot keys">${rapid?"<kbd>A</kbd> to <kbd>E</kbd> answer":"<kbd>1</kbd> sure, <kbd>2</kbd> unsure, <kbd>3</kbd> guess, <kbd>H</kbd> hint, <kbd>A</kbd> to <kbd>E</kbd> answer"}, <kbd>Enter</kbd> next, <kbd>←</kbd> back, <kbd>Esc</kbd> end</div>`;
+  wireGear(V);$("#quit").onclick=()=>end();if($("#prev"))$("#prev").onclick=prevCard;
   if($(".cfig"))$(".cfig").onclick=e=>{const f=e.currentTarget;f.classList.toggle("big");$("figcaption",f).textContent=f.classList.contains("big")?"Tap to shrink":"Tap to enlarge"};
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();const p=$(".stem");p.outerHTML=CFG.short&&it.oneliner?`<p class="stem one">${ONE(it.oneliner)}</p>`:`<p class="stem">${HL(it.stem,it)}</p>`;$("#swap").textContent=CFG.short?"Full case":"One-liner"};
-  stage();
-  if(rapid){tStart=now();const T=$("#tmr");tick=setInterval(()=>{const left=Math.max(0,CFG.timer-(now()-tStart)/1000);T.textContent=Math.ceil(left);T.classList.toggle("low",left<=10);
-    if(left<=0){clearInterval(tick);if(ph!=="done"){picked="_time";conf="guess";ph="done";record();stage(true)}}},250)}}
+  stage(was&&was.timedOut);
+  if(rapid&&!was){tStart=now();const T=$("#tmr");tick=setInterval(()=>{const left=Math.max(0,CFG.timer-(now()-tStart)/1000);T.textContent=Math.ceil(left);T.classList.toggle("low",left<=10);
+    if(left<=0){clearInterval(tick);if(ph!=="done"){picked="_time";conf="guess";ph="done";record(true);stage(true)}}},250)}}
 function confSeg(){return `<div class="conf"><span class="q">How sure are you?</span><div class="seg" id="cf">${[["sure","Sure"],["unsure","Unsure"],["guess","Guess"]].map(([v,n])=>`<button data-cf="${v}" class="${conf===v?"on":""}">${n}</button>`).join("")}</div></div>`}
 function stage(timedOut){const it=RUN.q[RUN.pos],S=$("#stage");if(!S)return;
   const hs=CFG.hints&&RUN.mode!=="rapid"?(it.hints||[]):[],hintBtn=hs.length&&!hintOn?`<button class="btn text" id="hb">Show a hint</button>`:"";
@@ -662,12 +666,13 @@ function wireFlip(S){const f=$("#flip",S);if(!f)return;$(".in",f).style.minHeigh
 function showHint(){const it=RUN.q[RUN.pos];if(hintOn||!(it.hints||[]).length)return;hintOn=true;$("#hints").innerHTML=it.hints.map(h=>`<div class="hintline"><b>Hint</b>${HL(h,it)}</div>`).join("");stage()}
 function selfGrade(ok){picked=ok?OPT(RUN.q[RUN.pos]).c:"_";record();next()}
 function pick(l){if(ph!=="options")return;clearInterval(tick);if(RUN.mode==="rapid")conf=(now()-tStart)/1000<CFG.timer/2?"sure":"unsure";picked=l;ph="done";record();stage()}
-function record(){const it=RUN.q[RUN.pos],ok=picked===OPT(it).c,id=it.id;P.seen[id]=1;P.last[id]=now();RUN.answered++;let box=P.box[id]||0;
+function record(timedOut){const it=RUN.q[RUN.pos],ok=picked===OPT(it).c,id=it.id;(RUN.log=RUN.log||{})[RUN.pos]={picked,conf,timedOut:!!timedOut};P.seen[id]=1;P.last[id]=now();RUN.answered++;let box=P.box[id]||0;
   if(ok&&conf!=="guess"){box=conf==="sure"?Math.min(box+1,GAP.length-1):Math.max(box,1);RUN.got++;P.right[id]=(P.right[id]||0)+1;RUN.streak++}
   else{box=0;P.wrong[id]=(P.wrong[id]||0)+1;RUN.miss.push(id);RUN.streak=0;
     if(RUN.mode!=="rapid"&&!RUN.again.has(id)&&!RUN.q.slice(RUN.pos+1).includes(it)){RUN.again.add(id);RUN.q.splice(Math.min(RUN.pos+4,RUN.q.length),0,it)}}
   P.box[id]=box;P.due[id]=box?now()+GAP[box]*DAY:now()+10*MIN;saveP();
   if(ok&&conf!=="guess"){buzz(12);if(RUN.streak&&RUN.streak%5===0)spark()}else buzz([25,40,25])}
+function prevCard(){if(!RUN||RUN.pos<1)return;clearInterval(tick);RUN.pos--;go("player")}
 function next(){const c=$("#qc"),adv=()=>{RUN.pos++;RUN.pos<RUN.q.length?go("player"):end()};if(c&&CFG.motion==="full"){c.classList.add("leave");setTimeout(adv,180)}else adv()}
 function end(){clearInterval(tick);if(!RUN)return go("today");const r=RUN;RUN=null;
   const missU=[...new Set(r.miss)],mins=Math.max(1,Math.round((now()-r.t0)/6e4));
@@ -731,38 +736,46 @@ const tnDue=(tr,n)=>{const s=tnState(tr,n);return !s?"new":s.retired?"hidden":s.
 const treeDueCount=tr=>visNodes(tr).filter(n=>["new","due"].includes(tnDue(tr,n))).length;
 function nextGap(tr,n,k){const s=tnState(tr,n)||{box:0};if(k==="again")return 10*MIN;const nb=Math.min(GAP.length-1,(s.box||0)+(k==="easy"?2:1));return GAP[Math.max(1,nb)]*DAY}
 function openTrees(list,title="Concept trees"){if(list.every(x=>x.series==="dxtree"))return openCases(list);const sh=sheet({title,body:`<p class="lede" style="margin-top:0">A case at the root. Each branch asks one question: say the answer, tap to reveal, then rate it. Branches you know come back later, like Anki.</p>`+list.map(x=>{const d=treeDueCount(x);return `<div class="pick" data-tr="${x.id}" role="button" tabindex="0"><span class="bx" style="border-radius:50%;${d?"":"background:var(--scrub);border-color:var(--scrub)"}">${ICON.tick}</span><span class="nm">${esc(x.title)}<small>${esc(TOPIC[x.topic].title)}, ${plural(visNodes(x).length,"branch")}</small></span><span class="r">${d?`${d} to do`:"Up to date"}</span></div>`}).join("")});
-  keyClick(sh);$$("[data-tr]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);openTree(o.dataset.tr)})}
+  keyClick(sh);$$("[data-tr]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);setNav(list,o.dataset.tr);openTree(o.dataset.tr,false,undefined,true)})}
 function subtree(tr,cid){const keep=new Set([cid]);tr.nodes.forEach(n=>{if(keep.has(n.parent))keep.add(n.id)});return visNodes(tr).filter(n=>keep.has(n.id))}
-function openTree(id,all,chapter){const tr0=TREES.find(x=>x.id===id);
-  if(tr0&&tr0.file&&!tr0.root){toast("Loading case…");return needTree(tr0).then(()=>openTree(id,all,chapter)).catch(()=>toast("Could not load. Check the connection and try again."))}
+function openTree(id,all,chapter,keep){const tr0=TREES.find(x=>x.id===id);if(!keep&&(!TNAV||TNAV.seq[TNAV.pos]!==id))TNAV={seq:[id],pos:0};
+  if(tr0&&tr0.file&&!tr0.root){toast("Loading case…");return needTree(tr0).then(()=>openTree(id,all,chapter,true)).catch(()=>toast("Could not load. Check the connection and try again."))}
   const tr=tr0;
   if(tr.chapters&&chapter===undefined){const due=l=>l.filter(n=>["new","due"].includes(tnDue(tr,n))).length;
     const sh=sheet({title:tr.title,body:`<p class="lede" style="margin-top:0">A big tree. Walk all of it, or one branch at a time.</p>
       <div class="pick" data-ch="" role="button" tabindex="0"><span class="bx" style="border-radius:50%">${ICON.tick}</span><span class="nm">The whole tree<small>${plural(visNodes(tr).length,"branch")}</small></span><span class="r">${due(visNodes(tr))?`${due(visNodes(tr))} to do`:"Up to date"}</span></div>
       ${tr.chapters.map(c=>{const l=subtree(tr,c.id);return `<div class="pick" data-ch="${c.id}" role="button" tabindex="0"><span class="bx" style="border-radius:50%">${ICON.tick}</span><span class="nm">${esc(c.name)}<small>${plural(l.length,"branch")}</small></span><span class="r">${due(l)?`${due(l)} to do`:"Up to date"}</span></div>`}).join("")}`});
-    keyClick(sh);$$("[data-ch]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);openTree(id,all,o.dataset.ch)});return}
+    keyClick(sh);$$("[data-ch]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);openTree(id,all,o.dataset.ch,true)});return}
   TRUN={tree:tr,all:!!all,chapter:chapter||""};go("tree")}
-let TRUN=null;
+let TRUN=null,TNAV=null;
+function setNav(list,id,more){const seq=list.map(x=>x.id||x);TNAV={seq,pos:Math.max(0,seq.indexOf(id)),more}}
+function canStep(d){if(!TNAV)return false;return d<0?TNAV.pos>0:TNAV.pos<TNAV.seq.length-1||!!TNAV.more}
+function treeStep(d){if(!canStep(d))return;let id;
+  if(d<0)id=TNAV.seq[--TNAV.pos];
+  else if(TNAV.pos<TNAV.seq.length-1)id=TNAV.seq[++TNAV.pos];
+  else{id=TNAV.more();if(!id)return toast("No more cases here.");TNAV.seq.push(id);TNAV.pos++}
+  TRUN=null;openTree(id,TNAV.all,undefined,true)}
 const DXT=()=>TREES.filter(x=>x.series==="dxtree");
 /* diagnosis cases: topic, title and plate stay hidden until the diagnosis branch is revealed */
 function unveil(){if(!TRUN||TRUN.unveiled)return;TRUN.unveiled=true;const tr=TRUN.tree,im=$(".tnode.root img");
   if(im){im.classList.remove("veiled");im.classList.add("unveil")}
   if($("#ttopic"))$("#ttopic").textContent=TOPIC[tr.topic].title;if($("#tkind"))$("#tkind").textContent=tr.title;P.done=P.done||{};P.done[tr.id]=1;saveP();wires()}
-function randomCase(list){list=list||DXT();const due=list.filter(x=>treeDueCount(x)),pool=due.length?due:list;openTree(pool[Math.floor(Math.random()*pool.length)].id,!due.length)}
+function randomCase(list){list=list||DXT();const pick=()=>{const seen=new Set(TNAV?TNAV.seq:[]),due=list.filter(x=>treeDueCount(x)&&!seen.has(x.id)),rest=list.filter(x=>!seen.has(x.id)),pool=due.length?due:rest;return pool.length?pool[Math.floor(Math.random()*pool.length)].id:null};
+  TNAV={seq:[],pos:-1,more:pick};const id=pick();if(!id)return toast("No cases here.");TNAV.seq.push(id);TNAV.pos=0;TNAV.all=!list.some(x=>treeDueCount(x));openTree(id,TNAV.all,undefined,true)}
 function openCases(list){const done=x=>P.done&&P.done[x.id];
   const sh=sheet({title:"Diagnosis cases",body:`<p class="lede" style="margin-top:0">Each case hides its diagnosis. Name it first; the topic and picture appear once you reveal it.</p>
    <div class="pick" data-rnd role="button" tabindex="0"><span class="bx" style="border-radius:50%">${ICON.tick}</span><span class="nm">Random case<small>Due cases first</small></span><span class="r"></span></div>`+
    list.map((x,i)=>{const d=treeDueCount(x);return `<div class="pick" data-tr="${x.id}" role="button" tabindex="0"><span class="bx" style="border-radius:50%;${d?"":"background:var(--scrub);border-color:var(--scrub)"}">${ICON.tick}</span><span class="nm">Case ${i+1}<small>${done(x)?esc(x.title):"Not yet solved"}</small></span><span class="r">${d?`${d} to do`:"Up to date"}</span></div>`}).join("")});
-  keyClick(sh);$("[data-rnd]",sh).onclick=()=>{closeSheet(true);randomCase(list)};$$("[data-tr]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);openTree(o.dataset.tr)})}
+  keyClick(sh);$("[data-rnd]",sh).onclick=()=>{closeSheet(true);randomCase(list)};$$("[data-tr]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);setNav(list,o.dataset.tr);openTree(o.dataset.tr,false,undefined,true)})}
 const depthOf=(tr,id)=>{let d=0,n=tr.nodes.find(x=>x.id===id);while(n&&n.parent!=="root"){d++;n=tr.nodes.find(x=>x.id===n.parent)}return d+1};
 function TreePlayer(V){if(!TRUN)return go("practice");const tr=TRUN.tree,t=TOPIC[tr.topic],R=tr.root,DX=tr.series==="dxtree";TRUN.shown=0;TRUN.unveiled=!DX;TRUN.knew=0;TRUN.asked=0;
   TRUN.list=TRUN.chapter?subtree(tr,TRUN.chapter):visNodes(tr);const chName=TRUN.chapter?tr.chapters.find(c=>c.id===TRUN.chapter).name:"";
-  V.innerHTML=`<div class="ptop"><button class="iconbtn" id="quit" aria-label="Close tree">${ICON.close}</button><div class="bar"><i id="tb" style="width:0"></i></div><span class="n" id="tc">0/${TRUN.list.length}</span><button class="iconbtn" data-gear aria-label="Settings">${ICON.gear}</button></div>
+  V.innerHTML=`<div class="ptop"><button class="iconbtn" id="quit" aria-label="Close tree">${ICON.close}</button>${canStep(-1)?`<button class="iconbtn" id="tprev" aria-label="Previous case" title="Previous case">${ICON.back}</button>`:""}<div class="bar"><i id="tb" style="width:0"></i></div><span class="n" id="tc">0/${TRUN.list.length}</span>${canStep(1)?`<button class="iconbtn" id="tnext" aria-label="Next case" title="Next case">${ICON.fwd}</button>`:""}<button class="iconbtn" data-gear aria-label="Settings">${ICON.gear}</button></div>
    <div class="meta">${DX?`<span class="topic" id="ttopic">Diagnosis case</span><span id="tkind">Name it before the topic shows</span>`:`<span class="topic">${esc(t.title)}</span><span>${chName?esc(tr.title)+": "+esc(chName):tr.series==="dxtree"?"Diagnosis tree":"Concept tree"}</span>`}${(tr.times_tested||1)>1?"<span>High yield</span>":""}${R.oneliner?`<button class="swap" id="swap">${CFG.short?"Full case":"One-liner"}</button>`:""}</div>
    <div class="tree" id="tree"><svg class="wires" id="wires" aria-hidden="true"></svg>
      <section class="tnode root" data-id="root" style="--d:0">${tr.plate?`<img src="${tr.plate}" alt="" onerror="this.remove()"${DX?' class="veiled"':""}>`:""}<div class="rc">${caseHTML(R)}${R.rootSvg==="chest"?chestSVG():""}</div></section></div>
    <div id="tend"></div>`;
-  wireGear(V);$("#quit").onclick=()=>{TRUN=null;go("practice")};
+  wireGear(V);$("#quit").onclick=()=>{TRUN=null;go("practice")};if($("#tprev"))$("#tprev").onclick=()=>treeStep(-1);if($("#tnext"))$("#tnext").onclick=()=>treeStep(1);
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();$(".tnode.root .rc").innerHTML=caseHTML(R)+(R.rootSvg==="chest"?chestSVG():"");$("#swap").textContent=CFG.short?"Full case":"One-liner";wires()};
   addEventListener("resize",wires);
   if(!TRUN.all&&!TRUN.list.some(n=>["new","due"].includes(tnDue(tr,n)))){const soon=Math.min(...TRUN.list.map(n=>tnState(tr,n)).filter(s=>s&&!s.retired).map(s=>s.due));
@@ -798,9 +811,9 @@ function grade(n,el,k){const tr=TRUN.tree,key=tnKey(tr,n),s=P.tn[key]||{box:0};P
   el.insertAdjacentHTML("beforeend",`<span class="mark ${k==="again"?"m":"k"}">${k==="never"?"Hidden":k==="again"?"Again in 10 min":`Back in ${fmtGap(s.due-now())}`}</span>`);wires();setTimeout(growNext,CFG.motion==="off"?0:180)}
 function treeDone(){const tr=TRUN.tree,N=TRUN.list.length;unveil();$("#tb").style.width="100%";$("#tc").textContent=`${N}/${N}`;
   if(TRUN.asked&&TRUN.knew===TRUN.asked)spark();
-  $("#tend").innerHTML=`<div class="tdone"><p>${TRUN.asked?`You knew ${TRUN.knew} of ${TRUN.asked} branches.`:"Nothing was due."}</p><div class="row"><button class="btn go" id="tov">See the whole tree</button><button class="btn" id="tmap">Find it on the map</button><button class="btn text" id="tbk">Back</button></div></div>`;
+  $("#tend").innerHTML=`<div class="tdone"><p>${TRUN.asked?`You knew ${TRUN.knew} of ${TRUN.asked} branches.`:"Nothing was due."}</p><div class="row">${canStep(1)?`<button class="btn go" id="tnx">Next case</button>`:""}<button class="btn${canStep(1)?"":" go"}" id="tov">See the whole tree</button><button class="btn" id="tmap">Find it on the map</button><button class="btn text" id="tbk">Back</button></div></div>`;
   $("#tov").onclick=()=>{const T=$("#tree"),on=T.classList.toggle("over");$("#tov").textContent=on?"Show the notes":"See the whole tree";wires();if(on)T.scrollIntoView({behavior:CFG.motion==="full"?"smooth":"auto"})};
-  $("#tmap").onclick=()=>{MAPFOCUS=tr.topic;TRUN=null;go("learn")};$("#tbk").onclick=()=>{TRUN=null;go("practice")};$("#tov").focus({preventScroll:true})}
+  $("#tmap").onclick=()=>{MAPFOCUS=tr.topic;TRUN=null;go("learn")};$("#tbk").onclick=()=>{TRUN=null;go("practice")};if($("#tnx"))$("#tnx").onclick=()=>treeStep(1);($("#tnx")||$("#tov")).focus({preventScroll:true})}
 function wires(animId){const T=$("#tree"),S=$("#wires");if(!T||!S)return;const box=T.getBoundingClientRect();let h="";
   $$(".tnode[data-parent]",T).forEach(c=>{const p=$(`.tnode[data-id="${c.dataset.parent}"]`,T);if(!p)return;const pr=p.getBoundingClientRect(),cr=c.getBoundingClientRect();
     const x0=pr.left-box.left+14,y0=pr.bottom-box.top,x1=cr.left-box.left,y1=cr.top-box.top+22;
@@ -931,8 +944,10 @@ function openSettings(){
 addEventListener("keydown",e=>{const k=e.key.toLowerCase();
   if(k==="escape"){if(sheetOpen)return closeSheet();if(view==="player"&&RUN)return end();if(view==="tree"){TRUN=null;return go("practice")}}
   if(e.target.matches("input,textarea"))return;
+  if(!sheetOpen&&view==="tree"&&TRUN&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){treeStep(e.key==="ArrowLeft"?-1:1);return}
   if(!sheetOpen&&view==="tree"&&TRUN&&(e.key===" "||e.key==="Enter")&&!e.target.closest("button")){e.preventDefault();const v=$(".tnode.now .veil");if(v)v.click();else $(".tnode.now .tself .go")?.click();return}
   if(sheetOpen||view!=="player"||!RUN)return;
+  if(e.key==="ArrowLeft"){prevCard();return}
   if(k==="h"&&ph!=="done"){showHint();return}
   if(["1","2","3"].includes(k)&&(ph==="rate"||(ph==="options"&&RUN.mode!=="rapid"))){const c=["sure","unsure","guess"][+k-1];if(ph==="rate"){conf=c;ph=CFG.opts?"options":"reveal";stage()}else{conf=c;$$("[data-cf]").forEach(x=>x.classList.toggle("on",x.dataset.cf===c))}return}
   if(ph==="reveal"){if(k==="y")selfGrade(true);else if(k==="n")selfGrade(false)}

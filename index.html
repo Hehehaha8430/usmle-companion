@@ -200,9 +200,6 @@ mark{background:linear-gradient(transparent 58%,var(--marker) 58%,var(--marker) 
 .hintline{margin-top:.9rem;padding:.6rem .85rem;border-left:3px solid var(--quiet);background:var(--page);font-size:.95rem}
 .hintline b{font-weight:600;margin-right:.3rem}
 .ask{font:700 1.3rem/1.35 var(--serif);margin:1.3rem 0 0;padding-top:1.1rem;border-top:1px solid var(--rule)}
-.conf{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:1rem}
-.conf .q{font-size:.88rem;color:var(--quiet);margin-right:.2rem}
-.conf .seg{flex:1;max-width:19rem}
 .opts{margin-top:1rem;border-top:1px solid var(--rule)}
 .op{display:grid;grid-template-columns:1.35rem 1.3rem 1fr;gap:.55rem;align-items:start;width:100%;text-align:left;border:0;border-bottom:1px solid var(--rule);background:none;padding:.8rem .4rem;cursor:pointer;font:400 1rem/1.5 var(--sans)}
 .op:hover{background:var(--tint)}
@@ -380,6 +377,8 @@ strong.key{font-weight:700;color:var(--ink)}
 .tdone .row{display:flex;flex-wrap:wrap;gap:.5rem}
 @media(max-width:560px){h1{font-size:1.75rem}.case{padding:1.15rem 1rem 1.1rem;border-radius:8px}.stem{font-size:1.06rem}.ask{font-size:1.18rem}.plan p.big{font-size:1.35rem}}
 @media(prefers-reduced-motion:reduce){html:not([data-motion="full"]){--t:0}}
+.hidebar{text-align:center;margin:.2rem 0 0}
+.srs{margin-top:1rem}.srsnote{font:400 .85rem var(--sans);color:var(--quiet)}.tself .btn.on{box-shadow:inset 0 0 0 2px currentColor}
 </style>
 </head>
 <body>
@@ -439,9 +438,10 @@ function applyCfg(){const H=document.documentElement;H.dataset.theme=CFG.theme==
 mq.addEventListener?.("change",applyCfg);applyCfg();
 
 /* progress */
-const P=load("usmle:progress",{box:{},due:{},seen:{},right:{},wrong:{},last:{},sessions:[],tn:{},retired:{}});P.tn=P.tn||{};P.retired=P.retired||{};
-const saveP=()=>store("usmle:progress",P);
+const P=load("usmle:progress",{box:{},due:{},seen:{},right:{},wrong:{},last:{},sessions:[],tn:{},retired:{},ivl:{},ease:{}});P.tn=P.tn||{};P.retired=P.retired||{};P.ivl=P.ivl||{};P.ease=P.ease||{};
+const saveP=()=>store("usmle:progress",P);try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist().catch(()=>{})}catch(e){}
 const isDue=id=>P.seen[id]&&(P.due[id]||0)<=now();
+const resting=id=>!!P.seen[id]&&(P.due[id]||0)>now();
 function topicStats(tid){const its=ITEMS.filter(i=>i.topic===tid);let r=0,w=0,s=0;its.forEach(i=>{r+=P.right[i.id]||0;w+=P.wrong[i.id]||0;s+=P.seen[i.id]?1:0});return{n:its.length,r,w,s,acc:r+w?r/(r+w):null}}
 const F=load("usmle:filter",{topics:[],subjects:[],systems:[]});F.systems=(F.systems||[]).filter(x=>SYSNAME[x]);const saveF=()=>store("usmle:filter",F);
 const inSys=(tid,set)=>{set=set||F.systems;return !set.length||set.includes(SYSOF[tid])};
@@ -504,7 +504,7 @@ function Today(V){
      ${bar(ITEMS.length?seen/ITEMS.length:0)}<div class="trackcap"><span>${seen} of ${ITEMS.length} cards practised</span><span>${ITEMS.filter(i=>(P.box[i.id]||0)>=3).length} solid</span></div>
    </section>
    <div class="exam">${days!=null&&days>=0?`<b>${days}</b> days to your exam <button class="btn text" id="exam">Change</button>`:`No exam date yet. <button class="btn text" id="exam">Set your exam date</button>`}</div>
-   ${last?`<h2>Last session</h2><div class="list"><div class="li"><div><div class="t">${esc(last.name)}</div><div class="s">${last.got} of ${last.n} right on ${new Date(last.at).toLocaleDateString(undefined,{day:"numeric",month:"short"})}</div></div><button class="btn" id="cont">${last.miss.length?`Redo ${plural(last.miss.length,"miss")}`:"Do it again"}</button></div></div>`:""}
+   ${last?`<h2>Last session</h2><div class="list"><div class="li"><div><div class="t">${esc(last.name)}</div><div class="s">${last.got} of ${last.n} right on ${new Date(last.at).toLocaleDateString(undefined,{day:"numeric",month:"short"})}</div></div>${(()=>{const av=(last.miss.length?last.miss:last.ids).filter(id=>!P.retired[id]&&!resting(id)).length;return av?`<button class="btn" id="cont">${last.miss.length?`Redo ${plural(av,"miss")}`:"Do it again"}</button>`:""})()}</div></div>`:""}
    <h2>Weak spots</h2>
    <div class="list">${weak.length?weak.map(x=>`<div class="li tap" data-fix="${x.t.id}" role="button" tabindex="0"><div><div class="t">${esc(x.t.title)}</div><div class="s">${x.s.r} right, ${x.s.w} wrong</div></div><span class="acc">${Math.round(100*x.s.acc)}%</span></div>`).join(""):`<div class="empty">Your three weakest topics will show here once you've answered a few cards.</div>`}</div>
    <h2>Quick practice</h2>
@@ -521,7 +521,7 @@ function Today(V){
   wireGear(V);
   $("#plan").onclick=()=>todo?startRun({name:"Today's cards",mode:"learn",pool:[...due,...fresh.slice(0,nNew)],keepOrder:true}):startRun({name:"Random 10",mode:"random",pool:ITEMS,size:10});
   $("#exam").onclick=openExamDate;
-  if(last)$("#cont").onclick=()=>{const ids=last.miss.length?last.miss:last.ids;startRun({name:last.name,mode:"learn",pool:ITEMS.filter(i=>ids.includes(i.id)),keepOrder:true})};
+  if($("#cont"))$("#cont").onclick=()=>{const ids=last.miss.length?last.miss:last.ids;startRun({name:last.name,mode:"learn",pool:ITEMS.filter(i=>ids.includes(i.id)),keepOrder:true})};
   $$("[data-fix]",V).forEach(b=>b.onclick=()=>startRun({name:TOPIC[b.dataset.fix].title,mode:"learn",pool:ITEMS.filter(i=>i.topic===b.dataset.fix)}));
   $$("[data-tree]",V).forEach(b=>b.onclick=()=>openTree(b.dataset.tree));
   $$("[data-quick]",V).forEach(b=>b.onclick=()=>b.dataset.quick==="dx"?randomCase():b.dataset.quick==="mech"?openStart({id:"mechx",ids:["mech"],name:"Why does it happen?",blurb:"The mechanism behind the case"}):b.dataset.quick==="micro"?openStart({id:"micro",ids:["bug","bugx"],name:"Micro",blurb:"Which bug and how it does it, mixed"}):b.dataset.quick==="drugs"?openStart({id:"drugs",ids:["moa","choice","adr"],name:"Drugs",blurb:"How it works, which drug and side effects, mixed"}):b.dataset.quick==="spot"?openStart(SERIES.spot):b.dataset.quick==="random"?startRun({name:"Random 10",mode:"random",pool:ITEMS,size:10}):startRun({name:"Timed sprint",mode:"rapid",pool:ITEMS,size:10}))}
@@ -530,7 +530,7 @@ function openExamDate(){const sh=sheet({title:"Exam date",body:`<div class="fiel
 
 /* Practice */
 function Practice(V){
-  const nT=F.topics.length,nS=F.subjects.length,pool=ITEMS.filter(inFilter);
+  const nT=F.topics.length,nS=F.subjects.length,pool=ITEMS.filter(i=>inFilter(i)&&!P.retired[i.id]);
   const nY=F.systems.length,nb=sid=>CAT.topics.filter(t=>inSys(t.id)&&(!nT||F.topics.includes(t.id))&&(!nS||F.subjects.includes(t.subject))).reduce((a,t)=>a+((t.series_counts||{})[sid]||0),0);
   const tpoolAll=TREES.filter(x=>inSys(x.topic)&&(!nT||F.topics.includes(x.topic))&&(!nS||F.subjects.includes(TOPIC[x.topic]?.subject))),tp=sid=>tpoolAll.filter(x=>x.series===sid);
   const rows=CAT.series.map(s=>({s,n:TS.has(s.id)?tp(s.id).length:pool.filter(i=>i.series===s.id).length,nb:TS.has(s.id)?tp(s.id).length:nb(s.id)})).filter(x=>(x.n||x.nb||TS.has(x.s.id))&&!(x.s.id==="dx"&&TREES.some(y=>y.series==="dxtree"))).sort((a,b)=>TS.has(b.s.id)-TS.has(a.s.id)||(b.n>0)-(a.n>0)||b.nb-a.nb);
@@ -576,13 +576,14 @@ function openSubjects(){const sel=new Set(F.subjects);
   const sh=sheet({title:"Subjects",body:CAT.subjects.map(s=>{const n=CAT.topics.filter(t=>t.subject===s).reduce((a,t)=>a+t.nbme_questions,0);return `<div class="pick${sel.has(s)?" on":""}" data-s="${esc(s)}" role="checkbox" aria-checked="${sel.has(s)}" tabindex="0"><span class="bx">${ICON.tick}</span><span class="nm">${esc(s)}<small>${"tested "+n+"×"}</small></span><span></span></div>`}).join(""),foot:`<button class="btn go wide" id="sd">Show series</button>`});
   keyClick(sh);$$(".pick",sh).forEach(o=>o.onclick=()=>{const s=o.dataset.s;sel.has(s)?sel.delete(s):sel.add(s);o.classList.toggle("on")});
   $("#sd",sh).onclick=()=>{F.subjects=[...sel];saveF();closeSheet();go("practice")}}
-const MODES=[["learn","Learn","No timer. Hints allowed. Full answer after each card."],["rapid","Timed","A countdown on each card. No hints."],["random","Shuffled","Mixed order, closest to the real exam."],["due","Reviews due","Only the cards spaced review has scheduled for today."],["missed","Misses","Cards you got wrong or guessed."]];
+const MODES=[["learn","Learn","No timer. Hints allowed. Full answer after each card."],["rapid","Timed","A countdown on each card. No hints."],["random","Shuffled","Mixed order, closest to the real exam."],["new","New only","Shuffled cards you have never answered."],["due","Due for review","Cards whose review day has come."],["missed","Misses","Cards you got wrong, once their 1-day rest is over."]];
 function openStart(s){const mix=s.id==="spot"||s.ids;let mode=mix?"random":"learn",size=mix?20:10;const ys=new Set(F.systems);
-  const all=ITEMS.filter(i=>(s.ids||[s.id]).includes(i.series)&&(!F.topics.length||F.topics.includes(i.topic))&&(!F.subjects.length||F.subjects.includes(TOPIC[i.topic]?.subject)));
+  const all=ITEMS.filter(i=>!P.retired[i.id]&&!resting(i.id)&&(s.ids||[s.id]).includes(i.series)&&(!F.topics.length||F.topics.includes(i.topic))&&(!F.subjects.length||F.subjects.includes(TOPIC[i.topic]?.subject)));
   const sysList=CAT.systems.filter(y=>all.some(i=>SYSOF[i.topic]===y.id));
   const pool=()=>all.filter(i=>inSys(i.topic,[...ys]));
-  const cnt=m=>{const p=pool();return m==="due"?p.filter(i=>isDue(i.id)).length:m==="missed"?p.filter(i=>(P.wrong[i.id]||0)&&(P.box[i.id]||0)===0).length:p.length};
-  const body=()=>{const p=pool();return `<p class="lede" style="margin-top:0">${esc(s.blurb)}. ${plural(p.length,"card")}${ys.size?" in "+(ys.size===1?esc(SYSNAME[[...ys][0]]):ys.size+" systems"):""}${F.topics.length?" in your chosen topics":""}.</p>
+  const cnt=m=>{const p=pool();return m==="new"?p.filter(i=>!P.seen[i.id]).length:m==="due"?p.filter(i=>isDue(i.id)).length:m==="missed"?p.filter(i=>(P.wrong[i.id]||0)&&(P.box[i.id]||0)===0).length:p.length};
+  const restN=ITEMS.filter(i=>!P.retired[i.id]&&resting(i.id)&&(s.ids||[s.id]).includes(i.series)).length;
+  const body=()=>{const p=pool();return `<p class="lede" style="margin-top:0">${esc(s.blurb)}. ${restN?`${plural(restN,"card")} resting until their review day. `:""}${plural(p.length,"card")}${ys.size?" in "+(ys.size===1?esc(SYSNAME[[...ys][0]]):ys.size+" systems"):""}${F.topics.length?" in your chosen topics":""}.</p>
     ${sysList.length>1?`<div class="field"><div class="lab">Systems</div><div class="chips" id="ys"><button data-y="" class="${ys.size?"":"on"}">All</button>${sysList.map(y=>`<button data-y="${y.id}" class="${ys.has(y.id)?"on":""}">${esc(y.name)}<small>${all.filter(i=>SYSOF[i.topic]===y.id).length}</small></button>`).join("")}</div></div>`:""}
     <div class="field"><div class="lab">How do you want to practise?</div>${MODES.map(([k,n,d])=>{const c=cnt(k);return `<div class="pick radio${mode===k?" on":""}${c?"":" dim"}" data-m="${k}" role="radio" aria-checked="${mode===k}" tabindex="0"><span class="bx">${ICON.tick}</span><span class="nm">${n}<small>${d}</small></span><span class="r">${c}</span></div>`}).join("")}</div>
     <div class="field"><div class="lab">Number of cards</div><div class="seg" id="sz">${[5,10,20,40,999].map(n=>`<button data-n="${n}" class="${size===n?"on":""}">${n===999?"All":n}</button>`).join("")}</div>
@@ -599,8 +600,9 @@ function openStart(s){const mix=s.id==="spot"||s.ids;let mode=mix?"random":"lear
 
 /* run */
 let RUN=null;
-function startRun({name,mode,pool,size=10,keepOrder}){let q;pool=pool.filter(i=>!P.retired[i.id]);
-  if(mode==="due")q=pool.filter(i=>isDue(i.id)).sort((a,b)=>(P.box[a.id]||0)-(P.box[b.id]||0));
+function startRun({name,mode,pool,size=10,keepOrder}){let q;pool=pool.filter(i=>!P.retired[i.id]&&!resting(i.id));
+  if(mode==="new")q=shuffle(pool.filter(i=>!P.seen[i.id]));
+  else if(mode==="due")q=pool.filter(i=>isDue(i.id)).sort((a,b)=>(P.box[a.id]||0)-(P.box[b.id]||0));
   else if(mode==="missed")q=pool.filter(i=>(P.wrong[i.id]||0)&&(P.box[i.id]||0)===0);
   else if(mode==="random"||mode==="rapid")q=shuffle(pool);
   else if(keepOrder)q=pool.slice();
@@ -616,11 +618,11 @@ const ONE=s=>esc(s).replace(/ \+ /g,' <span class="pl">+</span> ').replace(/ →
 const OPT=it=>!CFG.traps&&it.nbmeOptions?{o:it.nbmeOptions,c:it.nbmeCorrect,nb:true}:{o:it.options,c:it.correct,nb:false};
 const rx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 function HL(t,it){if(!CFG.hl||!it.highlight)return t;let o=t;[...it.highlight].sort((a,b)=>b.length-a.length).forEach(p=>{o=o.replace(new RegExp("("+rx(p)+"[A-Za-z]*)(?![^<]*>)","g"),"<mark>$1</mark>")});return o}
-let ph,conf,picked,hintOn,tick,tStart;
+let ph,picked,hintOn,tick,tStart;
 function Player(V){
   if(!RUN)return go("today");const it=RUN.q[RUN.pos],rapid=RUN.mode==="rapid",t=TOPIC[it.topic];
-  const direct=rapid||(CFG.opts&&CFG.direct);ph=direct?"options":"rate";conf=direct?"sure":null;picked=null;hintOn=false;clearInterval(tick);
-  const was=(RUN.log||{})[RUN.pos];if(was){ph="done";picked=was.picked;conf=was.conf}
+  const direct=rapid||(CFG.opts&&CFG.direct);ph=direct?"options":"rate";picked=null;hintOn=false;clearInterval(tick);
+  const was=(RUN.log||{})[RUN.pos];if(was){ph="done";picked=was.picked}
   V.innerHTML=`<div class="ptop">
      <button class="iconbtn" id="quit" aria-label="End session">${ICON.close}</button>
      ${RUN.pos>0?`<button class="iconbtn" id="prev" aria-label="Previous card" title="Previous card">${ICON.back}</button>`:""}
@@ -637,35 +639,33 @@ function Player(V){
      <div id="stage" aria-live="polite"></div>
    </article>
    <nav class="cnav" aria-label="Move between cards"><button class="btn" id="pv"${RUN.pos>0?"":" disabled"}>${ICON.back} Previous</button><button class="btn" id="sk">${RUN.pos+1<RUN.q.length?"Next":"Finish"} ${ICON.fwd}</button></nav>
-   <div class="foot keys">${rapid?"<kbd>A</kbd> to <kbd>E</kbd> answer":"<kbd>1</kbd> sure, <kbd>2</kbd> unsure, <kbd>3</kbd> guess, <kbd>H</kbd> hint, <kbd>A</kbd> to <kbd>E</kbd> answer"}, <kbd>Enter</kbd> next, <kbd>←</kbd> back, <kbd>Esc</kbd> end</div>`;
-  wireGear(V);$("#quit").onclick=()=>end();if($("#prev"))$("#prev").onclick=prevCard;$("#pv").onclick=prevCard;$("#sk").onclick=skipCard;
+   ${was?"":`<div class="hidebar"><button class="btn text" id="nevq">Don't show this card again</button></div>`}<div class="foot keys">${rapid?"<kbd>A</kbd> to <kbd>E</kbd> answer":"<kbd>H</kbd> hint, <kbd>A</kbd> to <kbd>E</kbd> answer"}, <kbd>Enter</kbd> next, <kbd>←</kbd> back, <kbd>Esc</kbd> end</div>`;
+  wireGear(V);$("#quit").onclick=()=>end();if($("#prev"))$("#prev").onclick=prevCard;$("#pv").onclick=prevCard;$("#sk").onclick=skipCard;if($("#nevq"))$("#nevq").onclick=()=>{hideCard(it);skipCard()};
   if($(".cfig"))$(".cfig").onclick=e=>{const f=e.currentTarget;f.classList.toggle("big");$("figcaption",f).textContent=f.classList.contains("big")?"Tap to shrink":"Tap to enlarge"};
   if($("#swap"))$("#swap").onclick=()=>{CFG.short=!CFG.short;saveCfg();const p=$(".stem");p.outerHTML=CFG.short&&it.oneliner?`<p class="stem one">${ONE(it.oneliner)}</p>`:`<p class="stem">${HL(it.stem,it)}</p>`;$("#swap").textContent=CFG.short?"Full case":"One-liner"};
   stage(was&&was.timedOut);
   if(rapid&&!was){tStart=now();const T=$("#tmr");tick=setInterval(()=>{const left=Math.max(0,CFG.timer-(now()-tStart)/1000);T.textContent=Math.ceil(left);T.classList.toggle("low",left<=10);
-    if(left<=0){clearInterval(tick);if(ph!=="done"){picked="_time";conf="guess";ph="done";record(true);stage(true)}}},250)}}
-function confSeg(){return `<div class="conf"><span class="q">How sure are you?</span><div class="seg" id="cf">${[["sure","Sure"],["unsure","Unsure"],["guess","Guess"]].map(([v,n])=>`<button data-cf="${v}" class="${conf===v?"on":""}">${n}</button>`).join("")}</div></div>`}
+    if(left<=0){clearInterval(tick);if(ph!=="done"){picked="_time";ph="done";record(true);stage(true)}}},250)}}
 function stage(timedOut){const it=RUN.q[RUN.pos],S=$("#stage");if(!S)return;
   const hs=CFG.hints&&RUN.mode!=="rapid"?(it.hints||[]):[],hintBtn=hs.length&&!hintOn?`<button class="btn text" id="hb">Show a hint</button>`:"";
   if(ph==="rate"){
-    S.innerHTML=`${confSeg()}<p class="lede" style="font-size:.88rem">Answer in your head, then say how sure you are.</p>${hintBtn}`;
-    $$("[data-cf]",S).forEach(b=>b.onclick=()=>{conf=b.dataset.cf;ph=CFG.opts?"options":"reveal";stage()})}
+    S.innerHTML=`<p class="lede" style="font-size:.88rem">Answer in your head first.</p><div class="next"><button class="btn go" id="shw">${CFG.opts?"Show options":"Show answer"}</button></div>${hintBtn}`;
+    $("#shw",S).onclick=()=>{ph=CFG.opts?"options":"reveal";stage()}}
   else if(ph==="reveal"){
     S.innerHTML=`${answerBlock(it)}<div class="next"><button class="btn" id="m">I missed it</button><button class="btn go" id="g">I had it</button></div>`;
     wireFlip(S);$("#m").onclick=()=>selfGrade(false);$("#g").onclick=()=>selfGrade(true)}
   else if(ph==="options"){const quick=RUN.mode!=="rapid";
-    S.innerHTML=`${quick?confSeg():""}<div class="opts" role="radiogroup">${Object.entries(OPT(it).o).map(([l,tx])=>`<button class="op" data-l="${l}" role="radio" aria-checked="false"><span class="rd"></span><span class="lt">${l}</span><span>${tx}</span></button>`).join("")}</div>${hintBtn?`<div style="margin-top:.6rem">${hintBtn}</div>`:""}`;
-    $$(".op",S).forEach(b=>b.onclick=()=>pick(b.dataset.l));
-    $$("[data-cf]",S).forEach(b=>b.onclick=()=>{conf=b.dataset.cf;$$("[data-cf]",S).forEach(x=>x.classList.toggle("on",x===b))})}
-  else{const O=OPT(it),ok=picked===O.c,good=ok&&conf!=="guess";
-    const msg=timedOut?"Time ran out. This card comes back soon.":ok?(conf==="guess"?"Correct, but you guessed, so it comes back soon.":conf==="unsure"?"Correct. You were unsure, so it comes back tomorrow.":"Correct."):"Not quite. This card comes back soon.";
+    S.innerHTML=`<div class="opts" role="radiogroup">${Object.entries(OPT(it).o).map(([l,tx])=>`<button class="op" data-l="${l}" role="radio" aria-checked="false"><span class="rd"></span><span class="lt">${l}</span><span>${tx}</span></button>`).join("")}</div>${hintBtn?`<div style="margin-top:.6rem">${hintBtn}</div>`:""}`;
+    $$(".op",S).forEach(b=>b.onclick=()=>pick(b.dataset.l));}
+  else{$(".hidebar")?.remove();const O=OPT(it),ok=picked===O.c,good=ok;
+    const msg=timedOut?"Time ran out. This card comes back in 1 day.":ok?"Correct.":"Not quite. This card comes back in 1 day.";
     S.innerHTML=`<div class="opts">${Object.entries(O.o).map(([l,tx])=>{const c=l===O.c?"right":l===picked?"wrong":"",wn=O.nb?null:(it.whyNot||{})[l],tr=!O.nb&&(it.traps||[]).includes(l);
         return `<div class="op done ${c}"><span class="rd"></span><span class="lt">${l}</span><span>${tx}${tr?'<span class="trap">Trap</span>':""}${l!==O.c&&wn?`<span class="wn"><b>Why not:</b> ${BOLD(wn)}</span>`:""}</span></div>`}).join("")}</div>
       <div class="verdict ${good?"ok":"bad"}"><svg viewBox="0 0 24 24">${good?'<path d="m5 12.5 4.5 4.5L19 7.5"/>':'<path d="M7 7l10 10M17 7 7 17"/>'}</svg><span>${msg}</span></div>
       ${answerBlock(it)}
       <div class="links">${HIDE_T.has(it.series)?`<span>Topic: ${esc(TOPIC[it.topic]?.title||"")}</span>`:""}<span>Board: coming soon</span><span>Video: coming soon</span></div>
-      <div class="next"><button class="btn go" id="nx">${RUN.pos+1<RUN.q.length?"Next card":"See results"}</button><button class="btn text" id="nev">Never show this card again</button></div>`;
-    wireFlip(S);$("#nx").onclick=next;$("#nev").onclick=()=>{P.retired[it.id]=1;saveP();toast("Hidden. You can bring it back in Progress.");next()};$("#nx").focus({preventScroll:true})}
+      ${srsHTML(it)}<div class="next"><button class="btn go" id="nx">${RUN.pos+1<RUN.q.length?"Next card":"See results"}</button><button class="btn text" id="nev">Don't show this card again</button></div>`;
+    wireFlip(S);$("#nx").onclick=next;$("#nev").onclick=()=>{hideCard(it);next()};wireSrs(S,it);$("#nx").focus({preventScroll:true})}
   if($("#hb"))$("#hb").onclick=showHint}
 function chainHTML(c){return `<div class="chain" aria-label="Mechanism, step by step">${c.map((x,i)=>`${i?'<i aria-hidden="true">↓</i>':""}<span style="--i:${i}"${i===0?' class="c0"':i===c.length-1?' class="cz"':""}>${esc(x)}</span>`).join("")}</div>`}
 function ideaHTML(d){return `<div class="idea"><b>Key idea</b><p>${BOLD(esc(d.rule||""))}</p>${(d.also||[]).length?`<div class="also"><span>Same idea elsewhere</span><ul>${d.also.map(a=>`<li>${esc(a)}</li>`).join("")}</ul></div>`:""}</div>`}
@@ -680,25 +680,30 @@ function answerBlock(it){return `<div class="answer"><div class="a">${it.answer}
 function wireFlip(S){const f=$("#flip",S);if(!f)return;$(".in",f).style.minHeight=Math.max(...$$(".f",f).map(x=>x.scrollHeight))+"px";f.onclick=()=>f.classList.toggle("on");keyClick(S)}
 function showHint(){const it=RUN.q[RUN.pos];if(hintOn||!(it.hints||[]).length)return;hintOn=true;$("#hints").innerHTML=it.hints.map(h=>`<div class="hintline"><b>Hint</b>${HL(h,it)}</div>`).join("");stage()}
 function selfGrade(ok){picked=ok?OPT(RUN.q[RUN.pos]).c:"_";record();next()}
-function pick(l){if(ph!=="options")return;clearInterval(tick);if(RUN.mode==="rapid")conf=(now()-tStart)/1000<CFG.timer/2?"sure":"unsure";picked=l;ph="done";record();stage()}
-function record(timedOut){const it=RUN.q[RUN.pos],ok=picked===OPT(it).c,id=it.id;(RUN.log=RUN.log||{})[RUN.pos]={picked,conf,timedOut:!!timedOut};P.seen[id]=1;P.last[id]=now();RUN.answered++;let box=P.box[id]||0;
-  if(ok&&conf!=="guess"){box=conf==="sure"?Math.min(box+1,GAP.length-1):Math.max(box,1);RUN.got++;P.right[id]=(P.right[id]||0)+1;RUN.streak++}
-  else{box=0;P.wrong[id]=(P.wrong[id]||0)+1;RUN.miss.push(id);RUN.streak=0;
-    if(RUN.mode!=="rapid"&&!RUN.again.has(id)&&!RUN.q.slice(RUN.pos+1).includes(it)){RUN.again.add(id);RUN.q.splice(Math.min(RUN.pos+4,RUN.q.length),0,it)}}
-  P.box[id]=box;P.due[id]=box?now()+GAP[box]*DAY:now()+10*MIN;saveP();
-  if(ok&&conf!=="guess"){buzz(12);if(RUN.streak&&RUN.streak%5===0)spark()}else buzz([25,40,25])}
+function pick(l){if(ph!=="options")return;clearInterval(tick);picked=l;ph="done";record();stage()}
+function record(timedOut){const it=RUN.q[RUN.pos],ok=picked===OPT(it).c,id=it.id;(RUN.log=RUN.log||{})[RUN.pos]={picked,timedOut:!!timedOut,c0:P.ivl[id]||0,e0:P.ease[id]||2.5};P.seen[id]=1;P.last[id]=now();RUN.answered++;let box=P.box[id]||0;
+  if(ok){box=Math.min(box+1,GAP.length-1);RUN.got++;P.right[id]=(P.right[id]||0)+1;RUN.streak++}
+  else{box=0;P.wrong[id]=(P.wrong[id]||0)+1;RUN.miss.push(id);RUN.streak=0}
+  P.box[id]=box;P.ivl[id]=box?GAP[box]:1;P.due[id]=now()+P.ivl[id]*DAY;saveP();
+  if(ok){buzz(12);if(RUN.streak&&RUN.streak%5===0)spark()}else buzz([25,40,25])}
+const SRSK=[["again","Again"],["hard","Hard"],["good","Good"],["easy","Easy"]],SRSD={again:-.2,hard:-.15,good:0,easy:.15};
+const srsIvl=(l,k)=>{const c=l.c0||0,e=l.e0||2.5;return k==="again"?1:k==="hard"?Math.max(3,Math.round(c*1.2)):k==="good"?Math.max(7,Math.round(c*e)):Math.max(21,Math.round(c*e*1.3))};
+function srsHTML(it){const l=(RUN.log||{})[RUN.pos]||{};return `<div class="srs"><div class="srsnote" id="srsn">${l.k?"You chose":"Auto"}: back in ${fmtGap(Math.max(0,(P.due[it.id]||now())-now()))}. Or set your own review timer:</div><div class="tself rate">${SRSK.map(([k,n])=>`<button class="btn${k==="again"?" again":k==="good"?" go":""}${l.k===k?" on":""}" data-sr="${k}">${n}<small>${fmtGap(srsIvl(l,k)*DAY)}</small></button>`).join("")}</div></div>`}
+function wireSrs(S,it){$$("[data-sr]",S).forEach(b=>b.onclick=()=>{const l=RUN.log[RUN.pos],k=b.dataset.sr,d=srsIvl(l,k);P.ivl[it.id]=d;P.ease[it.id]=Math.max(1.3,l.e0+SRSD[k]);P.due[it.id]=now()+d*DAY;if(k==="again")P.box[it.id]=0;l.k=k;saveP();
+  $$("[data-sr]",S).forEach(x=>x.classList.toggle("on",x===b));$("#srsn",S).textContent=`You chose: back in ${fmtGap(d*DAY)}.`;toast(`Back in ${fmtGap(d*DAY)}`)})}
+function hideCard(it){P.retired[it.id]=1;saveP();if(RUN)for(let j=RUN.q.length-1;j>RUN.pos;j--)if(RUN.q[j].id===it.id)RUN.q.splice(j,1);toast("Hidden. It won't come back. Undo in Progress, Hidden items.")}
 function skipCard(){if(!RUN)return;clearInterval(tick);RUN.pos++;RUN.pos<RUN.q.length?go("player"):end()}
 function prevCard(){if(!RUN||RUN.pos<1)return;clearInterval(tick);RUN.pos--;go("player")}
 function next(){const c=$("#qc"),adv=()=>{RUN.pos++;RUN.pos<RUN.q.length?go("player"):end()};if(c&&CFG.motion==="full"){c.classList.add("leave");setTimeout(adv,180)}else adv()}
 function end(){clearInterval(tick);if(!RUN)return go("today");const r=RUN;RUN=null;
-  const missU=[...new Set(r.miss)],mins=Math.max(1,Math.round((now()-r.t0)/6e4));
+  const missU=[...new Set(r.miss)].filter(id=>!P.retired[id]),mins=Math.max(1,Math.round((now()-r.t0)/6e4));
   if(r.answered){P.sessions.push({name:r.name,mode:r.mode,at:now(),n:r.answered,got:r.got,miss:missU,ids:[...new Set(r.q.slice(0,r.pos+1).map(i=>i.id))]});P.sessions=P.sessions.slice(-30);saveP()}
   view="practice";drawTabs();document.body.classList.remove("focus");const M=$("#main");M.innerHTML="";const V=document.createElement("div");V.className="view";M.appendChild(V);
   V.innerHTML=`${MAST()}<h1>${esc(r.name)}</h1><div class="rulebar"></div>
    <div class="result"><div class="big">${r.got}<span> of ${r.answered} right</span></div>
-   <p class="lede">${mins} min. ${missU.length?`${plural(missU.length,"card")} to look at again.`:"Nothing to redo."} Wrong and guessed cards come back soon, unsure ones tomorrow, and sure ones after 1, 3, 7, 14 and 30 days.</p></div>
+   <p class="lede">${mins} min. ${missU.length?`${plural(missU.length,"card")} to look at again.`:"Nothing to redo."} Wrong cards rest 1 day; right ones come back after 1, 3, 7, 14 and 30 days, unless you set your own review timer.</p></div>
    ${missU.length?`<h2>Look at these again</h2><div class="miss">${missU.map(id=>{const i=ITEMS.find(x=>x.id===id);return `<div><b>${i.answer}</b><span>${BOLD(i.why)}</span></div>`}).join("")}</div>`:""}
-   <div class="next" style="margin-top:1.4rem">${missU.length?`<button class="btn go" id="redo">Redo the misses</button>`:""}<button class="btn" id="home">Back to Today</button><button class="btn text" id="more">More practice</button></div>`;
+   <div class="next" style="margin-top:1.4rem"><button class="btn" id="home">Back to Today</button><button class="btn text" id="more">More practice</button></div>`;
   wireGear(V);if(r.answered>=5&&r.got/r.answered>=.8)spark();
   if($("#redo"))$("#redo").onclick=()=>startRun({name:r.name,mode:"learn",pool:ITEMS.filter(i=>missU.includes(i.id)),keepOrder:true});
   $("#home").onclick=()=>go("today");$("#more").onclick=()=>go("practice")}
@@ -750,7 +755,7 @@ function visNodes(tr){if(CFG.step==="2")return tr.nodes;const hide=new Set();tr.
 const tnState=(tr,n)=>P.tn[tnKey(tr,n)]||null;
 const tnDue=(tr,n)=>{const s=tnState(tr,n);return !s?"new":s.retired?"hidden":s.due<=now()?"due":"later"};
 const treeDueCount=tr=>visNodes(tr).filter(n=>["new","due"].includes(tnDue(tr,n))).length;
-function nextGap(tr,n,k){const s=tnState(tr,n)||{box:0};if(k==="again")return 10*MIN;const nb=Math.min(GAP.length-1,(s.box||0)+(k==="easy"?2:1));return GAP[Math.max(1,nb)]*DAY}
+function nextGap(tr,n,k){const s=tnState(tr,n)||{box:0};if(k==="again")return DAY;const nb=Math.min(GAP.length-1,(s.box||0)+(k==="easy"?2:1));return GAP[Math.max(1,nb)]*DAY}
 function openTrees(list,title="Concept trees"){if(list.every(x=>x.series==="dxtree"))return openCases(list);const sh=sheet({title,body:`<p class="lede" style="margin-top:0">A case at the root. Each branch asks one question: say the answer, tap to reveal, then rate it. Branches you know come back later, like Anki.</p>`+list.map(x=>{const d=treeDueCount(x);return `<div class="pick" data-tr="${x.id}" role="button" tabindex="0"><span class="bx" style="border-radius:50%;${d?"":"background:var(--scrub);border-color:var(--scrub)"}">${ICON.tick}</span><span class="nm">${esc(x.title)}<small>${esc(TOPIC[x.topic].title)}, ${plural(visNodes(x).length,"branch")}</small></span><span class="r">${d?`${d} to do`:"Up to date"}</span></div>`}).join("")});
   keyClick(sh);$$("[data-tr]",sh).forEach(o=>o.onclick=()=>{closeSheet(true);setNav(list,o.dataset.tr);openTree(o.dataset.tr,false,undefined,true)})}
 function subtree(tr,cid){const keep=new Set([cid]);tr.nodes.forEach(n=>{if(keep.has(n.parent))keep.add(n.id)});return visNodes(tr).filter(n=>keep.has(n.id))}
@@ -821,11 +826,11 @@ function reveal(n,el){const tr=TRUN.tree;$(".veil",el).outerHTML=answerHTML(n);i
   wires();$$("[data-k]",el).forEach(b=>b.onclick=()=>grade(n,el,b.dataset.k));$(".tself .go",el).focus({preventScroll:true})}
 function grade(n,el,k){const tr=TRUN.tree,key=tnKey(tr,n),s=P.tn[key]||{box:0};P.seen[tr.id]=1;
   if(k==="never"){s.retired=1;toast("Hidden. You can bring it back in Progress.")}
-  else if(k==="again"){s.box=0;s.due=now()+10*MIN;P.wrong[key]=(P.wrong[key]||0)+1;buzz([25,40,25])}
+  else if(k==="again"){s.box=0;s.due=now()+DAY;P.wrong[key]=(P.wrong[key]||0)+1;buzz([25,40,25])}
   else{s.box=Math.min(GAP.length-1,Math.max(1,(s.box||0)+(k==="easy"?2:1)));s.due=now()+GAP[s.box]*DAY;P.right[key]=(P.right[key]||0)+1;TRUN.knew++;buzz(12)}
   P.tn[key]=s;saveP();
   el.classList.add("graded");$$(".never",el).forEach(x=>x.remove());
-  el.insertAdjacentHTML("beforeend",`<span class="mark ${k==="again"?"m":"k"}">${k==="never"?"Hidden":k==="again"?"Again in 10 min":`Back in ${fmtGap(s.due-now())}`}</span>`);wires();setTimeout(growNext,CFG.motion==="off"?0:180)}
+  el.insertAdjacentHTML("beforeend",`<span class="mark ${k==="again"?"m":"k"}">${k==="never"?"Hidden":k==="again"?"Back in 1 day":`Back in ${fmtGap(s.due-now())}`}</span>`);wires();setTimeout(growNext,CFG.motion==="off"?0:180)}
 function treeDone(){const tr=TRUN.tree,N=TRUN.list.length;unveil();$("#tb").style.width="100%";$("#tc").textContent=`${N}/${N}`;
   if(TRUN.asked&&TRUN.knew===TRUN.asked)spark();
   $("#tend").innerHTML=`<div class="tdone"><p>${TRUN.asked?`You knew ${TRUN.knew} of ${TRUN.asked} branches.`:"Nothing was due."}</p><div class="row">${canStep(1)?`<button class="btn go" id="tnx">Next case</button>`:""}<button class="btn${canStep(1)?"":" go"}" id="tov">See the whole tree</button><button class="btn" id="tmap">Find it on the map</button><button class="btn text" id="tbk">Back</button></div></div>`;
@@ -919,6 +924,19 @@ function openTopic(tid){const t=TOPIC[tid],c=topicContent(tid),sec=secOf(tid)||{
   if($("#tpc",sh))$("#tpc",sh).onclick=()=>{closeSheet(true);startRun({name:t.title,mode:"learn",pool:c.cards})}}
 
 /* Progress */
+const PKEYS=["box","due","seen","right","wrong","last","tn","retired","ivl","ease"];
+function openHidden(){const ids=Object.keys(P.retired),tns=Object.keys(P.tn).filter(k=>P.tn[k].retired);
+  const row=(k,t,s)=>`<div class="li"><div style="flex:1"><div class="t">${esc(t)}</div><div class="s">${esc(s)}</div></div><button class="btn text" data-un="${esc(k)}">Show again</button></div>`;
+  const sh=sheet({title:"Hidden items",onClose:()=>go("me"),body:`<p class="lede" style="margin-top:0">Left out of every session and count until you bring them back.</p><div class="list" style="padding:0;background:none">${ids.map(id=>{const i=IDX[id];return row("c:"+id,i?(SERIES[i.series]||{}).name||"Card":"Card",i&&TOPIC[i.topic]?TOPIC[i.topic].title:id)}).join("")}${tns.map(k=>{const tr=TREES.find(x=>x.id===k.split(":")[0]);return row("t:"+k,"Tree branch",tr?tr.title:k)}).join("")}</div>`,foot:`<button class="btn go wide" id="unall">Bring all back</button>`});
+  keyClick(sh);$$("[data-un]",sh).forEach(b=>b.onclick=()=>{const k=b.dataset.un.slice(2);if(b.dataset.un[0]==="c")delete P.retired[k];else if(P.tn[k]){delete P.tn[k].retired;P.tn[k].due=now()}saveP();b.closest(".li").remove();toast("It will come back in your sessions")});
+  $("#unall",sh).onclick=()=>{P.retired={};Object.values(P.tn).forEach(s=>{if(s.retired){delete s.retired;s.due=now()}});saveP();toast("Hidden items are back");closeSheet()}}
+function backupProgress(){const b=new Blob([JSON.stringify({app:"usmle-companion",v:1,at:new Date().toISOString(),progress:P,cfg:CFG,filter:F})],{type:"application/json"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(b);a.download="usmle-companion-progress-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);toast("Backup saved to your downloads")}
+function restoreProgress(){const f=document.createElement("input");f.type="file";f.accept=".json,application/json";f.style.display="none";document.body.appendChild(f);
+  f.onchange=()=>{const x=f.files[0];f.remove();if(!x)return;x.text().then(t=>{const d=JSON.parse(t),p=d&&d.progress;if(!d||d.app!=="usmle-companion"||!p||typeof p.seen!=="object")throw 0;
+    PKEYS.forEach(k=>P[k]=p[k]&&typeof p[k]==="object"&&!Array.isArray(p[k])?p[k]:{});P.sessions=Array.isArray(p.sessions)?p.sessions:[];saveP();
+    if(d.cfg&&typeof d.cfg==="object"){Object.assign(CFG,d.cfg);saveCfg();applyCfg()}if(d.filter&&typeof d.filter==="object"){Object.assign(F,d.filter);saveF()}toast("Progress restored");go("me")}).catch(()=>toast("That file isn't a backup from this app."))};
+  f.click()}
 function Me(V){
   const secs=ALLSECS.map(s=>{let r=0,w=0,n=0,seen=0;s.topics.forEach(t=>{const x=topicStats(t);r+=x.r;w+=x.w;n+=x.n;seen+=x.s});return{s,r,w,n,seen}}).filter(x=>x.n);
   const R=Object.values(P.right).reduce((a,b)=>a+b,0),W=Object.values(P.wrong).reduce((a,b)=>a+b,0);
@@ -930,11 +948,13 @@ function Me(V){
    <h2>Settings</h2>
    <div class="list"><div class="li tap" id="st" role="button" tabindex="0"><div><div class="t">Display and study</div><div class="s">Theme, text size, font, animations, options, hints</div></div></div>
    <div class="li tap" id="exd" role="button" tabindex="0"><div><div class="t">Exam date</div><div class="s">${CFG.exam?new Date(CFG.exam+"T00:00").toLocaleDateString(undefined,{day:"numeric",month:"long",year:"numeric"}):"Not set"}</div></div></div>
-   ${(()=>{const n=Object.keys(P.retired).length+Object.values(P.tn).filter(s=>s.retired).length;return n?`<div class="li tap" id="unhide" role="button" tabindex="0"><div><div class="t">Hidden items: ${n}</div><div class="s">Cards and branches you chose never to see again. Tap to bring them all back.</div></div></div>`:""})()}
+   ${(()=>{const n=Object.keys(P.retired).length+Object.values(P.tn).filter(s=>s.retired).length;return n?`<div class="li tap" id="unhide" role="button" tabindex="0"><div><div class="t">Hidden items: ${n}</div><div class="s">Cards and branches you chose not to see again. Tap to see them and bring any back.</div></div></div>`:""})()}
+   <div class="li tap" id="bkp" role="button" tabindex="0"><div><div class="t">Back up progress</div><div class="s">Download a file with your answers, hidden cards and settings</div></div></div>
+   <div class="li tap" id="rsto" role="button" tabindex="0"><div><div class="t">Restore from a backup</div><div class="s">Load a backup file on this or another device</div></div></div>
    <div class="li tap" id="rst" role="button" tabindex="0"><div><div class="t" style="color:var(--coral)">Reset progress</div><div class="s">Clears every answer saved on this device</div></div></div></div>`;
   wireGear(V);$("#st").onclick=openSettings;$("#exd").onclick=openExamDate;
-  if($("#unhide"))$("#unhide").onclick=()=>{P.retired={};Object.values(P.tn).forEach(s=>{if(s.retired){delete s.retired;s.due=now()}});saveP();toast("Hidden items are back");go("me")};
-  let armed=0;$("#rst").onclick=()=>{if(now()-armed>3000){armed=now();return toast("Tap again to reset all progress")}["box","due","seen","right","wrong","last","tn","retired"].forEach(k=>P[k]={});P.sessions=[];saveP();toast("Progress reset");go("me")}}
+  if($("#unhide"))$("#unhide").onclick=openHidden;$("#bkp").onclick=backupProgress;$("#rsto").onclick=restoreProgress;
+  let armed=0;$("#rst").onclick=()=>{if(now()-armed>3000){armed=now();return toast("Tap again to reset all progress")}PKEYS.forEach(k=>P[k]={});P.sessions=[];saveP();toast("Progress reset");go("me")}}
 
 /* settings */
 function openSettings(){
@@ -950,12 +970,12 @@ function openSettings(){
    <div class="field"><div class="lab">Animations</div>${seg("motion",[["full","Full"],["reduced","Reduced"],["off","Off"]])}</div>
    <div class="field"><div class="lab">Studying</div>
      ${tg("opts","Answer options","Off: say the answer, reveal it and mark yourself")}
-     ${tg("direct","Show options straight away","Off: say how sure you are before the options appear")}
+     ${tg("direct","Show options straight away","Off: think of the answer before the options appear")}
      ${tg("traps","Look-alike options","Off: use the original exam options")}
      ${tg("hl","Highlight key clues","Underlines the words that point to the answer")}
      ${tg("hints","Hints","Shows a hint button on cards that have one")}
      ${tg("haptics","Vibrate on answer","On phones that support it")}</div>
-   <div class="field keys"><div class="lab">Keyboard</div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> how sure, <kbd>A</kbd> to <kbd>E</kbd> answer, <kbd>H</kbd> hint, <kbd>Enter</kbd> next, <kbd>F</kbd> flip, <kbd>Esc</kbd> close. Zoom with <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and <kbd>+</kbd> or <kbd>−</kbd>.</div>`,
+   <div class="field keys"><div class="lab">Keyboard</div><kbd>A</kbd> to <kbd>E</kbd> answer, <kbd>H</kbd> hint, <kbd>Enter</kbd> next, <kbd>F</kbd> flip, <kbd>Esc</kbd> close. Zoom with <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and <kbd>+</kbd> or <kbd>−</kbd>.</div>`,
    onClose:()=>{if(view!=="player")go(view)}});
   keyClick(sh);
   $$(".seg[data-k]",sh).forEach(g=>$$("button",g).forEach(b=>b.onclick=()=>{CFG[g.dataset.k]=g.dataset.k==="short"?b.dataset.v==="true":b.dataset.v;if(g.dataset.k==="short"&&view==="player"&&RUN)go("player");if(g.dataset.k==="step"){drawTabs();if(view==="tree"&&TRUN)go("tree")}saveCfg();applyCfg();$$("button",g).forEach(x=>x.classList.toggle("on",x===b))}));
@@ -971,7 +991,7 @@ addEventListener("keydown",e=>{const k=e.key.toLowerCase();
   if(sheetOpen||view!=="player"||!RUN)return;
   if(e.key==="ArrowLeft"){prevCard();return}
   if(k==="h"&&ph!=="done"){showHint();return}
-  if(["1","2","3"].includes(k)&&(ph==="rate"||(ph==="options"&&RUN.mode!=="rapid"))){const c=["sure","unsure","guess"][+k-1];if(ph==="rate"){conf=c;ph=CFG.opts?"options":"reveal";stage()}else{conf=c;$$("[data-cf]").forEach(x=>x.classList.toggle("on",x.dataset.cf===c))}return}
+  if(ph==="rate"&&(e.key==="Enter"||e.key===" ")){e.preventDefault();ph=CFG.opts?"options":"reveal";stage();return}
   if(ph==="reveal"){if(k==="y")selfGrade(true);else if(k==="n")selfGrade(false)}
   else if(ph==="options"){const L=e.key.toUpperCase();if(OPT(RUN.q[RUN.pos]).o[L])pick(L)}
   else if(ph==="done"){if(e.key==="Enter"||e.key===" "){e.preventDefault();next()}else if(k==="f")$("#flip")?.click()}});
